@@ -1,0 +1,288 @@
+/* Wooody Translation Titan - Content Styles */
+
+/* 浮動翻譯按鈕 */
+.woody-translate-btn {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #4285f4;
+  color: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 999999;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  opacity: 0.9;
+  border: none;
+  outline: none;
+}
+
+.woody-translate-btn:hover {
+  background-color: #3367d6;
+  transform: scale(1.05);
+  opacity: 1;
+}
+
+.woody-translate-btn:active {
+  transform: scale(0.95);
+}
+
+/* 翻譯彈出視窗容器 */
+.woody-translate-popup {
+  position: absolute;
+  min-width: 320px;
+  max-width: 500px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  z-index: 999999;
+  overflow: hidden;
+  display: none;
+  font-family: Arial, sans-serif;
+}
+
+/* 彈出視窗標題列 */
+.woody-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.woody-popup-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #202124;
+  margin: 0;
+}
+
+/* 關閉按鈕 */
+.woody-popup-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5f6368;
+  font-size: 16px;
+  padding: 5px;
+  margin: -5px;
+  border-radius: 50%;
+}
+
+.woody-popup-close:hover {
+  background-color: #e8eaed;
+  color: #202124;
+}
+
+/* 原文內容 */
+.woody-original-text {
+  padding: 15px;
+  border-bottom: 1px solid #e8eaed;
+  max-height: 150px;
+  overflow-y: auto;
+  line-height: 1.5;
+  color: #333;
+  font-size: 14px;
+}
+
+/* 翻譯結果 */
+.woody-translated-text {
+  padding: 15px;
+  line-height: 1.5;
+  color: #0f984a;
+  font-size: 14px;
+  background-color: #f8fbf9;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 載入動畫 */
+.woody-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.woody-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(66, 133, 244, 0.2);
+  border-radius: 50%;
+  border-top-color: #4285f4;
+  animation: woody-spin 1s ease-in-out infinite;
+}
+
+@keyframes woody-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 底部操作列 */
+.woody-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e8eaed;
+}
+
+/* 操作按鈕 */
+.woody-action-btn {
+  background: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: #5f6368;
+  transition: all 0.2s;
+}
+
+.woody-action-btn:hover {
+  background-color: #f1f3f4;
+  color: #202124;
+}
+
+.woody-action-btn i {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+/* 服務選擇下拉選單 */
+.woody-service-select {
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #dadce0;
+  font-size: 12px;
+  background-color: white;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+/* 錯誤訊息 */
+.woody-error {
+  padding: 10px 15px;
+  background-color: #fdeded;
+  color: #b13033;
+  font-size: 13px;
+  border-top: 1px solid #f8d7da;
+  border-bottom: 1px solid #f8d7da;
+}
+
+/* ContextDic Pro - Content Styles */
+
+#contextdic-translation-button {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    background-color: #4285f4;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 999999;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#contextdic-translation-button:hover {
+    transform: scale(1.1);
+    background-color: #3367d6;
+}
+
+#contextdic-translation-button::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+#contextdic-translation-popup {
+    position: absolute;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 999999;
+    min-width: 200px;
+    max-width: 400px;
+    padding: 12px;
+}
+
+.contextdic-popup-content {
+    position: relative;
+}
+
+.contextdic-popup-text {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.contextdic-copy-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #f1f3f4;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #5f6368;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.contextdic-copy-button:hover {
+    background-color: #e8eaed;
+}
+
+.contextdic-loading {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    padding: 20px;
+}
+
+.contextdic-loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 8px;
+    border: 2px solid #4285f4;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+.contextdic-error {
+    font-size: 14px;
+    color: #d93025;
+    text-align: center;
+    padding: 20px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+} 

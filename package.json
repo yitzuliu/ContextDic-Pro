@@ -1,0 +1,11 @@
+{
+  "name": "contextdic-pro",
+  "version": "1.0.0",
+  "description": "Context-aware translations powered by Google's Gemini AI",
+  "scripts": {
+    "generate-icons": "node scripts/generate-icons.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.32.1"
+  }
+} 
