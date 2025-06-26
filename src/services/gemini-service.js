@@ -23,7 +23,7 @@ class GeminiService {
         return true;
     }
 
-    async translate(text, targetLanguage, context = '') {
+    async translate(text, targetLanguage, context = '', apiKey = '') {
         if (!text || !targetLanguage) {
             throw new Error('Invalid translation parameters');
         }
@@ -31,16 +31,23 @@ class GeminiService {
         await this.checkRateLimit();
         
         try {
+            const requestBody = {
+                text,
+                targetLanguage,
+                context
+            };
+            
+            // Add API key to request if provided
+            if (apiKey) {
+                requestBody.apiKey = apiKey;
+            }
+            
             const response = await fetch(`${this.baseUrl}/translate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    text,
-                    targetLanguage,
-                    context
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -55,15 +62,18 @@ class GeminiService {
 
             const data = await response.json();
             
-            if (data.error) {
-                throw new Error(data.error);
+            if (!data.success || data.error) {
+                throw new Error(data.error || 'Translation failed');
             }
 
             return {
+                success: true,
                 translatedText: data.translatedText,
                 sourceLanguage: data.sourceLanguage,
                 targetLanguage: data.targetLanguage,
-                confidence: data.confidence
+                confidence: data.confidence,
+                notes: data.notes,
+                timestamp: data.timestamp
             };
         } catch (error) {
             if (error.name === 'TypeError' && error.message.includes('fetch')) {

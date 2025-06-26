@@ -60,16 +60,38 @@ async function handleTranslation(message, sendResponse) {
         const result = await GeminiService.translate(
             text,
             targetLanguage || settings.targetLanguage,
-            context
+            context,
+            settings.apiKey
         );
         
         sendResponse({
-            translatedText: result.translatedText
+            success: true,
+            translatedText: result.translatedText,
+            confidence: result.confidence,
+            notes: result.notes
         });
     } catch (error) {
         console.error('Translation error:', error);
+        
+        // Provide more specific error messages based on error type
+        let errorMessage = error.message || 'Translation failed. Please try again.';
+        let errorType = 'UNKNOWN_ERROR';
+        
+        if (errorMessage.includes('API key')) {
+            errorType = 'AUTH_ERROR';
+            errorMessage = 'Please configure your Gemini API key in settings.';
+        } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+            errorType = 'RATE_LIMIT_ERROR';
+            errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+            errorType = 'NETWORK_ERROR';
+            errorMessage = 'Network error. Please check your internet connection and ensure the backend is running.';
+        }
+        
         sendResponse({
-            error: error.message || 'Translation failed. Please try again.'
+            success: false,
+            error: errorMessage,
+            errorType: errorType
         });
     }
 }

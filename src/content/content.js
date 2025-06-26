@@ -80,10 +80,10 @@ translationButton.addEventListener('click', async function() {
             targetLanguage: settings.targetLanguage
         });
         
-        if (response.error) {
-            showError(response.error);
+        if (!response.success || response.error) {
+            showError(response.error || 'Translation failed');
         } else {
-            showTranslation(response.translatedText);
+            showTranslation(response.translatedText, response.confidence, response.notes);
         }
     } catch (error) {
         showError('Translation failed. Please try again.');
@@ -138,13 +138,25 @@ function positionTranslationButton(rect) {
 /**
  * Show the translation popup with the translated text
  * @param {string} translatedText - The translated text to display
+ * @param {number} confidence - Translation confidence score
+ * @param {string} notes - Additional notes about the translation
  */
-function showTranslation(translatedText) {
+function showTranslation(translatedText, confidence = 0.9, notes = '') {
     const buttonRect = translationButton.getBoundingClientRect();
+    
+    const confidenceBar = confidence ? `
+        <div class="contextdic-confidence" title="Translation confidence: ${Math.round(confidence * 100)}%">
+            <div class="contextdic-confidence-bar" style="width: ${confidence * 100}%"></div>
+        </div>
+    ` : '';
+    
+    const notesSection = notes ? `<div class="contextdic-notes">${notes}</div>` : '';
     
     translationPopup.innerHTML = `
         <div class="contextdic-popup-content">
             <div class="contextdic-popup-text">${translatedText}</div>
+            ${confidenceBar}
+            ${notesSection}
             <button class="contextdic-copy-button">Copy</button>
         </div>
     `;
