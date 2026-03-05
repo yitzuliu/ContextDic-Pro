@@ -1,26 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ContextDic Pro</title>
     <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
     <div class="popup-container">
         <header class="popup-header">
             <h1>ContextDic Pro</h1>
             <p class="subtitle">Context-aware AI Translation</p>
         </header>
-        
+
         <main class="popup-content">
             <div class="quick-translate-section">
                 <h3>Quick Translate</h3>
-                <textarea 
-                    id="quickText" 
-                    placeholder="Enter text to translate..." 
-                    rows="3"
-                ></textarea>
+                <textarea id="quickText" placeholder="Enter text to translate…" rows="3"></textarea>
                 <div class="translate-controls">
                     <select id="targetLang">
                         <option value="en">English</option>
@@ -38,25 +36,26 @@
                 </div>
                 <div id="translationResult" class="translation-result"></div>
             </div>
-            
+
             <div class="status-section">
                 <div class="status-item">
-                    <span class="status-label">Backend:</span>
-                    <span id="backendStatus" class="status-value">Checking...</span>
+                    <span class="status-label">Mode:</span>
+                    <span id="modeStatus" class="status-value">Checking…</span>
                 </div>
                 <div class="status-item">
-                    <span class="status-label">API Key:</span>
-                    <span id="apiKeyStatus" class="status-value">Checking...</span>
+                    <span class="status-label">Status:</span>
+                    <span id="connectionStatus" class="status-value">Checking…</span>
                 </div>
             </div>
         </main>
-        
+
         <footer class="popup-footer">
             <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
             <button id="helpBtn" class="help-btn">❓ Help</button>
         </footer>
     </div>
-    
-    <script src="popup.js"></script>
+
+    <script src="popup.js" type="module"></script>
 </body>
-</html> 
+
+</html>

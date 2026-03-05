@@ -26,70 +26,8 @@ ContextDic Pro supports **flexible API key management**:
 
 ---
 
-## 📡 API Endpoints
-
-### 🔍 **GET /api/health**
-**Service health check endpoint**
-
-#### Response
-```json
-{
-    "success": true,
-    "status": "healthy",
-    "service": "ContextDic Pro Backend",
-    "version": "1.0.0",
-    "timestamp": "1234567890"
-}
-```
-
-#### Status Codes
-- `200 OK`: Service is healthy
-
----
-
-### 📊 **GET /api/status**
-**Detailed status with configuration info**
-
-#### Response
-```json
-{
-    "success": true,
-    "backend_running": true,
-    "api_key_configured": true,
-    "accepts_request_api_key": true,
-    "service": "ContextDic Pro Backend",
-    "timestamp": "1234567890"
-}
-```
-
-#### Status Codes
-- `200 OK`: Status retrieved successfully
-
----
-
-### 🔤 **POST /api/translate**
-**Primary translation endpoint with advanced features**
-
-#### Request Body
-```json
-{
-    "text": "Text to translate",
-    "targetLanguage": "en",
-    "context": "Optional context for better translation",
-    "apiKey": "Optional API key (overrides environment)"
-}
-```
-
-#### Parameters
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `text` | string | ✅ Yes | Text to translate |
-| `targetLanguage` | string | ✅ Yes | Target language code |
-| `context` | string | ❌ No | Additional context for better translation |
-| `apiKey` | string | ❌ No | API key (overrides environment configuration) |
-
-#### Success Response (200 OK)
-```json
+<!-- History and analytics endpoints were removed: the server processes translations
+on-demand and does not persist translation history or accept analytics events. -->
 {
     "success": true,
     "translatedText": "Translated content",
@@ -118,6 +56,68 @@ ContextDic Pro supports **flexible API key management**:
 - `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Processing error
 - `503 Service Unavailable`: Network/connection issues
+- `504 Gateway Timeout`: Model generation exceeded timeout
+
+---
+
+### 🕒 **GET /api/history**
+Returns recent translation history (most recent first).
+
+#### Query Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | integer | ❌ No | Max items (default 20, max 100) |
+
+#### Success Response (200 OK)
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "text": "Hello",
+      "translatedText": "你好",
+      "targetLanguage": "zh",
+      "contextSample": "(trimmed context sample)",
+      "confidence": 0.95,
+      "timestamp": 1703123456
+    }
+  ],
+  "count": 1
+}
+```
+
+#### Status Codes
+- `200 OK`: History returned
+
+---
+
+### 📈 **POST /api/analytics**
+Accepts lightweight analytics / telemetry events from the extension.
+
+#### Request Body
+```json
+{
+  "event": "ad_impression",
+  "data": {"location": "popup"}
+}
+```
+
+#### Success Response (200 OK)
+```json
+{ "success": true }
+```
+
+#### Error Response (400 Bad Request)
+```json
+{ "success": false, "error": "Missing event field" }
+```
+
+#### Status Codes
+- `200 OK`: Event accepted
+- `400 Bad Request`: Missing required `event` field
+- `500 Internal Server Error`: Storage failure
+
+---
 
 ---
 
@@ -149,6 +149,7 @@ ContextDic Pro supports **flexible API key management**:
 | `RATE_LIMIT_ERROR` | Rate limiting | Quota exceeded, too many requests |
 | `NETWORK_ERROR` | Network problems | Connection issues, timeouts |
 | `PERMISSION_ERROR` | Access restrictions | Insufficient permissions |
+| `TIMEOUT_ERROR` | Generation exceeded time limit | Long model processing |
 | `UNKNOWN_ERROR` | Unexpected issues | Internal server errors |
 
 ### HTTP Status Code Guide
@@ -340,6 +341,15 @@ curl -X POST http://localhost:5000/api/translate \
 ```
 
 ### Rate Limit Error
+### Timeout Error
+```json
+{
+  "success": false,
+  "error": "Model generation timed out after 15s",
+  "errorType": "TIMEOUT_ERROR",
+  "timestamp": "1703123456"
+}
+```
 ```json
 {
     "success": false,

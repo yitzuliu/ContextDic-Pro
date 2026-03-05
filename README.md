@@ -200,3 +200,9 @@ We welcome contributions! Please see our [Contributing Guide](./docs/contributin
 **Made with ❤️ using Google's Gemini AI**
 
 **🎉 Ready to start translating? Begin with the [Quick Start Guide](./docs/quick-start.md)!**
+
+## 🔒 Security Notes
+
+- Do not commit secrets (API keys, credentials) into this repository. Use `backend/.env.example` as a template and create a local `backend/.env` which must be added to `.gitignore`.
+- If secrets are accidentally committed, rotate the keys immediately and purge them from git history (see `backend/README.md` for commands).
+- Review `docs/` for privacy and data-retention policies before enabling analytics or production telemetry.

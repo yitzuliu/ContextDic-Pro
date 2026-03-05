@@ -1,248 +1,139 @@
 /**
- * ContextDic Pro - Settings
- * Handles user settings page, settings storage, and premium features
+ * @fileoverview ContextDic Pro — Settings Page
+ *
+ * Dual-mode settings: BYOK (user's own Gemini key, default) or
+ * Backend (self-hosted server).  No ads.
+ *
+ * @module settings
  */
 
-import AdsService from '../services/ads-service.js';
+// ── Defaults ──────────────────────────────────────────────────────────────
 
-// Default settings
-const DEFAULT_SETTINGS = {
+const DEFAULTS = {
+    mode: 'byok',
     sourceLanguage: 'zh',
     targetLanguage: 'en',
-    apiKey: ''
+    apiKey: '',
+    backendUrl: 'http://localhost:5000',
+    apiSecret: '',
 };
 
-// Language codes and names mapping
-const LANGUAGES = {
-    'zh': 'Chinese',
-    'en': 'English',
-    'ja': 'Japanese',
-    'ko': 'Korean',
-    'fr': 'French',
-    'de': 'German',
-    'es': 'Spanish',
-    'it': 'Italian',
-    'ru': 'Russian',
-    'pt': 'Portuguese'
-};
+// ── Bootstrap ─────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', async () => {
-    loadSettings();
-    setupEventListeners();
-    await initializeMonetization();
+document.addEventListener('DOMContentLoaded', () => {
+    _loadSettings();
+    _bindEvents();
 });
 
-// Load settings from storage
-function loadSettings() {
-    chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
-        document.getElementById('sourceLanguage').value = settings.sourceLanguage;
-        document.getElementById('targetLanguage').value = settings.targetLanguage;
-        document.getElementById('apiKey').value = settings.apiKey;
+// ── Settings I/O ──────────────────────────────────────────────────────────
+
+function _loadSettings() {
+    chrome.storage.local.get(DEFAULTS, (s) => {
+        _val('sourceLanguage', s.sourceLanguage);
+        _val('targetLanguage', s.targetLanguage);
+        _val('apiKey', s.apiKey);
+        _val('backendUrl', s.backendUrl);
+        _val('apiSecret', s.apiSecret);
+        _setMode(s.mode);
     });
 }
 
-// Setup event listeners
-function setupEventListeners() {
-    // Save button click handler
-    document.getElementById('saveButton').addEventListener('click', saveSettings);
+function _saveSettings() {
+    if (!_validateLanguages()) return;
 
-    // Prevent same language selection
-    document.getElementById('sourceLanguage').addEventListener('change', validateLanguageSelection);
-    document.getElementById('targetLanguage').addEventListener('change', validateLanguageSelection);
+    const s = {
+        mode: _currentMode(),
+        sourceLanguage: _val('sourceLanguage'),
+        targetLanguage: _val('targetLanguage'),
+        apiKey: _val('apiKey'),
+        backendUrl: _val('backendUrl') || DEFAULTS.backendUrl,
+        apiSecret: _val('apiSecret'),
+    };
+
+    chrome.storage.local.set(s, () => {
+        _toast('Settings saved successfully!', 'success');
+        chrome.runtime.sendMessage({ type: 'settingsUpdated', settings: s });
+    });
 }
 
-// Validate language selection
-function validateLanguageSelection() {
-    const sourceLang = document.getElementById('sourceLanguage').value;
-    const targetLang = document.getElementById('targetLanguage').value;
+// ── Mode toggle ───────────────────────────────────────────────────────────
 
-    if (sourceLang === targetLang) {
-        showStatus('Source and target languages cannot be the same', 'error');
+function _currentMode() {
+    return document.getElementById('mode-byok').classList.contains('active')
+        ? 'byok'
+        : 'backend';
+}
+
+/** @param {'byok'|'backend'} mode */
+function _setMode(mode) {
+    const byokBtn = document.getElementById('mode-byok');
+    const backendBtn = document.getElementById('mode-backend');
+    const byokSec = document.getElementById('section-byok');
+    const backendSec = document.getElementById('section-backend');
+
+    if (mode === 'backend') {
+        byokBtn.classList.remove('active');
+        backendBtn.classList.add('active');
+        byokSec.classList.remove('active');
+        backendSec.classList.add('active');
+    } else {
+        byokBtn.classList.add('active');
+        backendBtn.classList.remove('active');
+        byokSec.classList.add('active');
+        backendSec.classList.remove('active');
+    }
+}
+
+// ── Validation ────────────────────────────────────────────────────────────
+
+function _validateLanguages() {
+    if (_val('sourceLanguage') === _val('targetLanguage')) {
+        _toast('Source and target languages cannot be the same', 'error');
         return false;
     }
     return true;
 }
 
-// Save settings to storage
-function saveSettings() {
-    if (!validateLanguageSelection()) {
-        return;
-    }
+// ── Event wiring ──────────────────────────────────────────────────────────
 
-    const settings = {
-        sourceLanguage: document.getElementById('sourceLanguage').value,
-        targetLanguage: document.getElementById('targetLanguage').value,
-        apiKey: document.getElementById('apiKey').value
-    };
-
-    chrome.storage.local.set(settings, () => {
-        showStatus('Settings saved successfully!', 'success');
-    });
-}
-
-// Show status message
-function showStatus(message, type) {
-    const statusElement = document.getElementById('statusMessage');
-    statusElement.textContent = message;
-    statusElement.className = `status-message ${type}`;
-    statusElement.style.display = 'block';
-
-    // Hide the message after 3 seconds
-    setTimeout(() => {
-        statusElement.style.display = 'none';
-    }, 3000);
-}
-
-// Reset settings to default
-document.getElementById('reset-btn').addEventListener('click', () => {
-    chrome.storage.local.set(DEFAULT_SETTINGS, () => {
-        loadSettings();
-        showStatus('Settings reset to default', 'success');
-    });
-});
-
-// Set up show/hide API key toggle buttons
-const toggleButtons = document.querySelectorAll('.toggle-visibility');
-toggleButtons.forEach(button => {
-  button.addEventListener('click', function() {
-    const targetId = this.dataset.target;
-    const targetInput = document.getElementById(targetId);
-    
-    if (targetInput.type === 'password') {
-      targetInput.type = 'text';
-      this.textContent = 'Hide';
-    } else {
-      targetInput.type = 'password';
-      this.textContent = 'Show';
-    }
-  });
-});
-
-// Initialize monetization features
-async function initializeMonetization() {
-    try {
-        // Initialize ads service
-        await AdsService.initialize();
-        
-        // Check premium status and update UI
-        await updatePremiumStatus();
-        
-        // Set up premium-related event listeners
-        setupPremiumEventListeners();
-        
-        // Show ads for non-premium users
-        if (!(await AdsService.isPremiumUser())) {
-            showSettingsAds();
-        }
-        
-    } catch (error) {
-        console.error('Monetization initialization failed:', error);
-    }
-}
-
-// Update premium status display
-async function updatePremiumStatus() {
-    const isPremium = await AdsService.isPremiumUser();
-    
-    if (isPremium) {
-        document.body.classList.add('premium-user');
-        document.getElementById('premium-user-section').style.display = 'block';
-        document.getElementById('free-user-section').style.display = 'none';
-    } else {
-        document.body.classList.remove('premium-user');
-        document.getElementById('premium-user-section').style.display = 'none';
-        document.getElementById('free-user-section').style.display = 'block';
-    }
-}
-
-// Set up premium-related event listeners
-function setupPremiumEventListeners() {
-    // Premium upgrade buttons
-    const upgradeButtons = document.querySelectorAll('.premium-upgrade-btn');
-    upgradeButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const plan = button.dataset.plan;
-            handlePremiumUpgrade(plan);
+function _bindEvents() {
+    document.getElementById('saveButton').addEventListener('click', _saveSettings);
+    document.getElementById('resetButton').addEventListener('click', () => {
+        chrome.storage.local.set(DEFAULTS, () => {
+            _loadSettings();
+            _toast('Settings reset to default', 'success');
         });
     });
-    
-    // Premium testing button (development only)
-    const testButton = document.getElementById('toggle-premium-test');
-    if (testButton) {
-        testButton.addEventListener('click', togglePremiumForTesting);
-    }
-    
-    // Premium management buttons
-    const manageButton = document.getElementById('manage-subscription');
-    if (manageButton) {
-        manageButton.addEventListener('click', () => {
-            chrome.tabs.create({ url: 'https://your-website.com/manage-subscription' });
-        });
-    }
-    
-    const supportButton = document.getElementById('premium-support');
-    if (supportButton) {
-        supportButton.addEventListener('click', () => {
-            chrome.tabs.create({ url: 'https://your-website.com/premium-support' });
-        });
-    }
-}
 
-// Handle premium upgrade
-function handlePremiumUpgrade(plan) {
-    // Track the upgrade attempt
-    AdsService.trackEvent('premium_upgrade_click', { 
-        plan: plan, 
-        location: 'settings_page' 
+    // Mode toggle buttons
+    document.querySelectorAll('.mode-toggle button').forEach((btn) => {
+        btn.addEventListener('click', () => _setMode(btn.dataset.mode));
     });
-    
-    // Open premium upgrade page
-    const upgradeUrl = `https://your-website.com/premium?plan=${plan}&source=settings`;
-    chrome.tabs.create({ url: upgradeUrl });
+
+    // Language validation
+    document.getElementById('sourceLanguage').addEventListener('change', _validateLanguages);
+    document.getElementById('targetLanguage').addEventListener('change', _validateLanguages);
 }
 
-// Show ads in settings page
-function showSettingsAds() {
-    const adContainer = document.getElementById('settings-ad-container');
-    if (adContainer) {
-        const bannerAd = AdsService.createBannerAd(728, 90); // Leaderboard banner
-        if (bannerAd) {
-            adContainer.appendChild(bannerAd);
-            
-            // Track ad impression
-            AdsService.trackEvent('ad_impression', { location: 'settings_page' });
-        }
-    }
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Get or set a form element's value.
+ * @param {string}  id
+ * @param {string} [newValue]
+ * @returns {string}
+ */
+function _val(id, newValue) {
+    const el = document.getElementById(id);
+    if (newValue !== undefined) el.value = newValue;
+    return el.value;
 }
 
-// Toggle premium status for testing (development only)
-async function togglePremiumForTesting() {
-    const currentStatus = await AdsService.isPremiumUser();
-    await AdsService.setPremiumStatus(!currentStatus);
-    
-    // Update UI
-    await updatePremiumStatus();
-    
-    // Reload to reflect changes
-    showStatus(`Premium status toggled to: ${!currentStatus ? 'Premium' : 'Free'}`, 'success');
-    
-    // Refresh ads
-    if (!currentStatus) {
-        // User became premium - hide ads
-        const ads = document.querySelectorAll('.contextdic-ad-container, .contextdic-banner-ad');
-        ads.forEach(ad => ad.style.display = 'none');
-    } else {
-        // User became free - show ads
-        showSettingsAds();
-    }
+/** @param {string} msg  @param {'success'|'error'} type */
+function _toast(msg, type) {
+    const el = document.getElementById('statusMessage');
+    el.textContent = msg;
+    el.className = `status-msg ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
-
-// Enhanced save settings to include premium features
-const originalSaveSettings = saveSettings;
-saveSettings = async function() {
-    // Call original save function
-    originalSaveSettings();
-    
-    // Track settings save for analytics
-    AdsService.trackEvent('settings_saved');
-}; 

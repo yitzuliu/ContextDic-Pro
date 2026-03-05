@@ -1,22 +1,16 @@
 {
   "manifest_version": 3,
   "name": "ContextDic Pro",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Context-aware translations powered by Google's Gemini AI",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
-    "https://googleads.g.doubleclick.net/*",
-    "https://tpc.googlesyndication.com/*",
-    "https://pagead2.googlesyndication.com/*"
+    "http://localhost:5000/*"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' https://pagead2.googlesyndication.com; object-src 'self'"
-  },
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_title": "ContextDic Pro",
@@ -39,17 +33,27 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/content.js"],
-      "css": ["src/content/content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
       "run_at": "document_end"
     }
   ],
   "options_page": "src/settings/settings.html",
   "web_accessible_resources": [
     {
-      "resources": ["assets/icons/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "assets/icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
-} 
+}

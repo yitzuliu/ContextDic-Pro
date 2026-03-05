@@ -1,297 +1,166 @@
 /**
- * ContextDic Pro - Popup Script
- * Handles popup interface functionality with ads integration
+ * @fileoverview ContextDic Pro — Popup Script
+ *
+ * Controls the quick-translate UI and status display.
+ * No ads.  No AdsService dependency.
+ *
+ * @module popup
  */
 
-import AdsService from '../services/ads-service.js';
-
-// DOM elements
+// ── DOM refs ──────────────────────────────────────────────────────────────
 const quickText = document.getElementById('quickText');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
 const translationResult = document.getElementById('translationResult');
-const backendStatus = document.getElementById('backendStatus');
-const apiKeyStatus = document.getElementById('apiKeyStatus');
+const modeStatus = document.getElementById('modeStatus');
+const connectionStatus = document.getElementById('connectionStatus');
 const settingsBtn = document.getElementById('settingsBtn');
 const helpBtn = document.getElementById('helpBtn');
 
-// Initialize popup
-document.addEventListener('DOMContentLoaded', async () => {
-    loadSettings();
-    checkStatus();
-    setupEventListeners();
-    
-    // Initialize ads and premium features
-    await initializeMonetization();
+// ── Bootstrap ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    _loadSettings();
+    _checkStatus();
+    _bindEvents();
 });
 
-// Load settings from storage
-async function loadSettings() {
+// ── Settings ──────────────────────────────────────────────────────────────
+async function _loadSettings() {
     try {
-        const settings = await chrome.storage.local.get({
+        const s = await chrome.storage.local.get({
             targetLanguage: 'en',
-            apiKey: ''
+            mode: 'byok',
         });
-        
-        targetLang.value = settings.targetLanguage;
-        
-        // Update API key status
-        updateApiKeyStatus(settings.apiKey);
-    } catch (error) {
-        console.error('Error loading settings:', error);
+        targetLang.value = s.targetLanguage;
+    } catch (e) {
+        console.error('Settings load error:', e);
     }
 }
 
-// Setup event listeners
-function setupEventListeners() {
-    translateBtn.addEventListener('click', handleTranslate);
-    settingsBtn.addEventListener('click', openSettings);
-    helpBtn.addEventListener('click', showHelp);
-    
-    // Enable translate on Enter key
+// ── Events ────────────────────────────────────────────────────────────────
+function _bindEvents() {
+    translateBtn.addEventListener('click', _translate);
+    settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+    helpBtn.addEventListener('click', _showHelp);
     quickText.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
-            handleTranslate();
-        }
+        if (e.key === 'Enter' && e.ctrlKey) _translate();
     });
-    
-    // Auto-resize textarea
-    quickText.addEventListener('input', autoResize);
+    quickText.addEventListener('input', () => {
+        quickText.style.height = 'auto';
+        quickText.style.height = Math.min(quickText.scrollHeight, 120) + 'px';
+    });
 }
 
-// Handle translation
-async function handleTranslate() {
+// ── Translation ───────────────────────────────────────────────────────────
+async function _translate() {
     const text = quickText.value.trim();
-    if (!text) {
-        showError('Please enter text to translate');
-        return;
-    }
-    
+    if (!text) { _showError('Please enter text to translate'); return; }
+
     try {
-        showLoading();
+        _showLoading();
         translateBtn.disabled = true;
-        
-        // Send translation request to background script
-        const response = await chrome.runtime.sendMessage({
+
+        const res = await chrome.runtime.sendMessage({
             type: 'translate',
-            text: text,
+            text,
             targetLanguage: targetLang.value,
-            context: ''
+            context: '',
         });
-        
-        if (response.error) {
-            showError(response.error);
-        } else {
-            showTranslation(response.translatedText);
-        }
-    } catch (error) {
-        console.error('Translation error:', error);
-        showError('Translation failed. Please try again.');
+
+        res.error ? _showError(res.error) : _showTranslation(res.translatedText);
+    } catch {
+        _showError('Translation failed. Please try again.');
     } finally {
         translateBtn.disabled = false;
     }
 }
 
-// Show loading state
-function showLoading() {
+// ── Rendering (XSS-safe) ─────────────────────────────────────────────────
+function _showLoading() {
     translationResult.className = 'translation-result show loading';
-    translationResult.innerHTML = `
-        <span class="loading-spinner"></span>
-        Translating...
-    `;
+    translationResult.innerHTML = '<span class="loading-spinner"></span>';
+    translationResult.appendChild(document.createTextNode(' Translating…'));
 }
 
-// Show translation result
-function showTranslation(text) {
+/** @param {string} text */
+function _showTranslation(text) {
     translationResult.className = 'translation-result show';
-    translationResult.innerHTML = `
-        <div>${text}</div>
-        <button onclick="copyToClipboard('${text.replace(/'/g, "\\'")}')">Copy</button>
-    `;
-}
+    translationResult.innerHTML = '';
 
-// Show error message
-function showError(message) {
-    translationResult.className = 'translation-result show error';
-    translationResult.innerHTML = message;
-}
+    const span = document.createElement('div');
+    span.className = 'translated-text';
+    span.textContent = text;
+    translationResult.appendChild(span);
 
-// Copy to clipboard
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        // Show success feedback
-        const button = event.target;
-        const originalText = button.textContent;
-        button.textContent = 'Copied!';
-        setTimeout(() => {
-            button.textContent = originalText;
-        }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy:', err);
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+        });
     });
+    translationResult.appendChild(btn);
 }
 
-// Check backend and API status
-async function checkStatus() {
-    // Check backend connectivity using health endpoint
+/** @param {string} msg */
+function _showError(msg) {
+    translationResult.className = 'translation-result show error';
+    translationResult.textContent = msg;
+}
+
+// ── Status ────────────────────────────────────────────────────────────────
+async function _checkStatus() {
     try {
-        const healthResponse = await fetch('http://localhost:5000/api/health');
-        if (healthResponse.ok) {
-            // Check detailed status
-            const statusResponse = await fetch('http://localhost:5000/api/status');
-            if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                updateBackendStatus(true);
-                
-                // Update API key status based on backend configuration
-                const settings = await chrome.storage.local.get(['apiKey']);
-                const hasExtensionKey = settings.apiKey && settings.apiKey !== 'your_gemini_api_key_here';
-                const hasBackendKey = statusData.api_key_configured;
-                
-                updateApiKeyStatus(hasExtensionKey || hasBackendKey ? 'configured' : '');
-            } else {
-                updateBackendStatus(false);
+        const s = await chrome.storage.local.get({
+            mode: 'byok',
+            apiKey: '',
+            backendUrl: 'http://localhost:5000',
+        });
+
+        if (s.mode === 'byok') {
+            modeStatus.textContent = 'BYOK (Your Key)';
+            modeStatus.className = 'status-value connected';
+            connectionStatus.textContent = s.apiKey ? 'Key Configured ✓' : 'Key Not Set ✗';
+            connectionStatus.className = `status-value ${s.apiKey ? 'connected' : 'disconnected'}`;
+        } else {
+            modeStatus.textContent = 'Backend Server';
+            modeStatus.className = 'status-value connected';
+            try {
+                const base = s.backendUrl.replace(/\/+$/, '');
+                const res = await fetch(`${base}/api/health`);
+                if (res.ok) {
+                    const statusRes = await fetch(`${base}/api/status`);
+                    const data = statusRes.ok ? await statusRes.json() : {};
+                    connectionStatus.textContent = data.api_key_configured
+                        ? 'Connected ✓'
+                        : 'Connected (no key)';
+                    connectionStatus.className = `status-value ${data.api_key_configured ? 'connected' : 'disconnected'}`;
+                } else {
+                    connectionStatus.textContent = 'Disconnected ✗';
+                    connectionStatus.className = 'status-value disconnected';
+                }
+            } catch {
+                connectionStatus.textContent = 'Disconnected ✗';
+                connectionStatus.className = 'status-value disconnected';
             }
-        } else {
-            updateBackendStatus(false);
         }
-    } catch (error) {
-        console.error('Status check failed:', error);
-        updateBackendStatus(false);
+    } catch {
+        modeStatus.textContent = 'Unknown';
+        connectionStatus.textContent = 'Error';
     }
 }
 
-// Update backend status display
-function updateBackendStatus(isConnected) {
-    backendStatus.textContent = isConnected ? 'Connected' : 'Disconnected';
-    backendStatus.className = `status-value ${isConnected ? 'connected' : 'disconnected'}`;
-}
-
-// Update API key status display
-function updateApiKeyStatus(apiKey) {
-    let hasKey;
-    if (typeof apiKey === 'string') {
-        if (apiKey === 'configured') {
-            hasKey = true;
-        } else {
-            hasKey = apiKey && apiKey.length > 0 && apiKey !== 'your_gemini_api_key_here';
-        }
-    } else {
-        hasKey = apiKey && apiKey.length > 0 && apiKey !== 'your_gemini_api_key_here';
-    }
-    
-    apiKeyStatus.textContent = hasKey ? 'Configured' : 'Not Set';
-    apiKeyStatus.className = `status-value ${hasKey ? 'connected' : 'disconnected'}`;
-}
-
-// Open settings page
-function openSettings() {
-    chrome.runtime.openOptionsPage();
-}
-
-// Show help information
-function showHelp() {
+// ── Help ──────────────────────────────────────────────────────────────────
+function _showHelp() {
     translationResult.className = 'translation-result show';
     translationResult.innerHTML = `
-        <strong>How to use ContextDic Pro:</strong><br>
-        1. Select text on any webpage<br>
-        2. Click the translation button that appears<br>
-        3. Or use this popup for quick translations<br><br>
-        <strong>Keyboard shortcut:</strong><br>
-        Ctrl+Enter to translate in this popup<br><br>
-        <strong>Need help?</strong><br>
-        Check settings to configure your API key and languages.
-    `;
+    <strong>How to use:</strong><br>
+    1. Select text on any webpage<br>
+    2. Click the 🌐 button that appears<br>
+    3. Or use this popup (Ctrl+Enter)<br><br>
+    <strong>Setup:</strong><br>
+    Open Settings → enter your Gemini API key.
+  `;
 }
-
-// Auto-resize textarea
-function autoResize() {
-    quickText.style.height = 'auto';
-    quickText.style.height = Math.min(quickText.scrollHeight, 120) + 'px';
-}
-
-// Initialize monetization features
-async function initializeMonetization() {
-    try {
-        // Initialize ads service
-        await AdsService.initialize();
-        
-        // Check if user is premium
-        const isPremium = await AdsService.isPremiumUser();
-        
-        if (isPremium) {
-            // Show premium status
-            document.body.classList.add('premium-user');
-            showPremiumStatus();
-        } else {
-            // Show ads for free users
-            await showPopupAds();
-            showPremiumUpgradeOption();
-        }
-    } catch (error) {
-        console.error('Monetization initialization failed:', error);
-    }
-}
-
-// Show ads in popup
-async function showPopupAds() {
-    const adContainer = AdsService.createPopupAd();
-    if (adContainer) {
-        // Insert ad before the footer
-        const footer = document.querySelector('.popup-footer');
-        if (footer) {
-            footer.parentNode.insertBefore(adContainer, footer);
-        }
-        
-        // Track ad impression
-        AdsService.trackEvent('ad_impression', { location: 'popup' });
-    }
-}
-
-// Show premium status for premium users
-function showPremiumStatus() {
-    const statusSection = document.querySelector('.status-section');
-    if (statusSection) {
-        const premiumStatus = document.createElement('div');
-        premiumStatus.className = 'premium-status';
-        premiumStatus.innerHTML = `
-            <div class="status-item">
-                <span class="status-label">Account:</span>
-                <span class="status-value premium">🚀 Premium</span>
-            </div>
-        `;
-        statusSection.appendChild(premiumStatus);
-    }
-}
-
-// Show premium upgrade option for free users
-function showPremiumUpgradeOption() {
-    const footer = document.querySelector('.popup-footer');
-    if (footer) {
-        const upgradeBtn = document.createElement('button');
-        upgradeBtn.className = 'upgrade-btn';
-        upgradeBtn.innerHTML = '🚀 Go Premium';
-        upgradeBtn.addEventListener('click', showPremiumUpgradeModal);
-        footer.appendChild(upgradeBtn);
-    }
-}
-
-// Show premium upgrade modal
-function showPremiumUpgradeModal() {
-    const modal = AdsService.createPremiumPrompt();
-    document.body.appendChild(modal);
-    
-    // Track upgrade prompt shown
-    AdsService.trackEvent('premium_prompt_shown', { location: 'popup' });
-}
-
-// Test premium features (for development)
-async function togglePremiumForTesting() {
-    const isPremium = await AdsService.isPremiumUser();
-    await AdsService.setPremiumStatus(!isPremium);
-    location.reload(); // Reload popup to see changes
-}
-
-// Make functions globally available
-window.copyToClipboard = copyToClipboard;
-window.togglePremiumForTesting = togglePremiumForTesting; 

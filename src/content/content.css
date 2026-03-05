@@ -1,130 +1,14 @@
-/* Removed conflicting Woody styles - keeping only ContextDic Pro styles */
-
 /* ContextDic Pro - Content Styles */
+/* NOTE: These styles are kept as a fallback / reference.
+   The content script now renders its UI inside a Shadow DOM
+   with inline styles for full CSS isolation.
+   This file is still loaded by manifest.json but has minimal effect. */
 
-#contextdic-translation-button {
-    position: absolute;
-    width: 32px;
-    height: 32px;
-    background-color: #4285f4;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 999999;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s, background-color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#contextdic-translation-button:hover {
-    transform: scale(1.1);
-    background-color: #3367d6;
-}
-
-#contextdic-translation-button::before {
-    content: '';
-    width: 16px;
-    height: 16px;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>');
-    background-size: contain;
-    background-repeat: no-repeat;
-}
-
-#contextdic-translation-popup {
-    position: absolute;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 999999;
-    min-width: 200px;
-    max-width: 400px;
-    padding: 12px;
-}
-
-.contextdic-popup-content {
-    position: relative;
-}
-
-.contextdic-popup-text {
-    font-size: 14px;
-    line-height: 1.5;
-    color: #333;
-    margin-bottom: 8px;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-.contextdic-copy-button {
+/* Shadow host positioning */
+#contextdic-shadow-host {
     position: absolute;
     top: 0;
-    right: 0;
-    background-color: #f1f3f4;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
-    color: #5f6368;
-    cursor: pointer;
-    transition: background-color 0.2s;
+    left: 0;
+    z-index: 999999;
+    pointer-events: none;
 }
-
-.contextdic-copy-button:hover {
-    background-color: #e8eaed;
-}
-
-.contextdic-loading {
-    font-size: 14px;
-    color: #666;
-    text-align: center;
-    padding: 20px;
-}
-
-.contextdic-loading::after {
-    content: '';
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    margin-left: 8px;
-    border: 2px solid #4285f4;
-    border-radius: 50%;
-    border-top-color: transparent;
-    animation: spin 1s linear infinite;
-}
-
-.contextdic-error {
-    font-size: 14px;
-    color: #d93025;
-    text-align: center;
-    padding: 20px;
-}
-
-.contextdic-confidence {
-    margin: 8px 0 4px 0;
-    height: 3px;
-    background-color: #f1f3f4;
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.contextdic-confidence-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #ea4335 0%, #fbbc04 30%, #34a853 60%);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-}
-
-.contextdic-notes {
-    font-size: 11px;
-    color: #666;
-    font-style: italic;
-    margin: 4px 0;
-    padding: 4px 0;
-    border-top: 1px solid #f1f3f4;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-} 

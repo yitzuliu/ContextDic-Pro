@@ -129,6 +129,24 @@ FLASK_DEBUG=True
 CORS_ORIGINS=chrome-extension://*,http://localhost:*
 RATE_LIMIT_PER_MINUTE=60
 LOG_LEVEL=INFO
+
+## 🔒 Security & Secret Handling
+
+- Never commit real API keys or secrets to the repository. Use `backend/.env.example` as a template and create a local `backend/.env` (which should be gitignored).
+- If you accidentally commit secrets, rotate them immediately and remove the secret from git history using tools like `git filter-repo` or `bfg-repo-cleaner`.
+- Example commands to remove a file from history (use carefully):
+
+```bash
+# Remove file from all history (use on your local clone, then force-push)
+npx git-filter-repo --invert-paths --path backend/.env
+# or with BFG (after backup):
+# bfg --delete-files backend/.env
+# then:
+git reflog expire --expire=now --all && git gc --prune=now --aggressive
+git push --force
+```
+
+Document and rotate API keys stored in any external services after purge.
 ```
 
 ### Supported Languages

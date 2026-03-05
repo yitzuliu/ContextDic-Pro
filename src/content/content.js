@@ -1,299 +1,463 @@
 /**
- * ContextDic Pro - Content Script
- * Handles text selection and translation functionality
+ * @fileoverview ContextDic Pro — Content Script
+ *
+ * Injected into every page to handle text selection and display a floating
+ * translation button + popup.  All UI is rendered inside a **closed Shadow
+ * DOM** so host-page CSS cannot interfere with the extension's styling.
+ *
+ * @module content
  */
 
-// Create and inject the translation button
-const translationButton = document.createElement('div');
-translationButton.id = 'contextdic-translation-button';
-translationButton.style.display = 'none';
-document.body.appendChild(translationButton);
+// ==========================================================================
+// Shadow DOM setup
+// ==========================================================================
 
-// Create and inject the translation popup
-const translationPopup = document.createElement('div');
-translationPopup.id = 'contextdic-translation-popup';
-translationPopup.style.display = 'none';
-document.body.appendChild(translationPopup);
+/** @type {HTMLDivElement} Host element for the shadow root. */
+const shadowHost = document.createElement('div');
+shadowHost.id = 'contextdic-shadow-host';
+shadowHost.style.cssText =
+    'position:absolute;top:0;left:0;z-index:999999;pointer-events:none;';
+document.body.appendChild(shadowHost);
 
-// Load settings from storage
+/** @type {ShadowRoot} Closed shadow root — invisible to host page scripts. */
+const shadow = shadowHost.attachShadow({ mode: 'closed' });
+
+// Inject minimal styles into the shadow root
+const style = document.createElement('style');
+style.textContent = `
+:host { all: initial; }
+
+.cd-btn {
+  position: absolute;
+  width: 32px; height: 32px;
+  background: #4285f4;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 999999;
+  box-shadow: 0 2px 5px rgba(0,0,0,.2);
+  transition: transform .2s, background .2s;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+}
+.cd-btn:hover { transform: scale(1.1); background: #3367d6; }
+.cd-btn::before {
+  content: '';
+  width: 16px; height: 16px;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.cd-popup {
+  position: absolute;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.1);
+  z-index: 999999;
+  min-width: 200px; max-width: 400px;
+  padding: 12px;
+  pointer-events: auto;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.cd-popup-inner { position: relative; }
+.cd-text {
+  font-size: 14px; line-height: 1.5; color: #333;
+  margin-bottom: 8px; white-space: pre-wrap; word-break: break-word;
+}
+.cd-copy {
+  position: absolute; top: 0; right: 0;
+  background: #f1f3f4; border: none; border-radius: 4px;
+  padding: 4px 8px; font-size: 12px; color: #5f6368;
+  cursor: pointer; transition: background .2s;
+}
+.cd-copy:hover { background: #e8eaed; }
+.cd-loading {
+  font-size: 14px; color: #666; text-align: center; padding: 20px;
+}
+.cd-loading::after {
+  content: ''; display: inline-block;
+  width: 12px; height: 12px; margin-left: 8px;
+  border: 2px solid #4285f4; border-radius: 50%;
+  border-top-color: transparent;
+  animation: cd-spin 1s linear infinite;
+}
+.cd-error { font-size: 14px; color: #d93025; text-align: center; padding: 20px; }
+.cd-conf { margin: 8px 0 4px; height: 3px; background: #f1f3f4; border-radius: 2px; overflow: hidden; }
+.cd-conf-bar { height: 100%; background: linear-gradient(90deg,#ea4335 0%,#fbbc04 30%,#34a853 60%); border-radius: 2px; transition: width .3s; }
+.cd-notes { font-size: 11px; color: #666; font-style: italic; margin: 4px 0; padding: 4px 0; border-top: 1px solid #f1f3f4; }
+@keyframes cd-spin { to { transform: rotate(360deg); } }
+`;
+shadow.appendChild(style);
+
+// UI elements live inside the shadow root
+const btn = document.createElement('div');
+btn.className = 'cd-btn';
+btn.style.display = 'none';
+shadow.appendChild(btn);
+
+const popup = document.createElement('div');
+popup.className = 'cd-popup';
+popup.style.display = 'none';
+shadow.appendChild(popup);
+
+// ==========================================================================
+// Settings
+// ==========================================================================
+
+/** @type {Object} Extension settings (synced from chrome.storage). */
 let settings = {
-    apiKey: '',
-    sourceLanguage: 'auto',
     targetLanguage: 'en',
-    contextLength: '150',
     buttonPosition: 'right',
-    popupPosition: 'bottom'
+    popupPosition: 'bottom',
 };
 
-// Load settings when the content script starts
-chrome.storage.local.get(null, function(items) {
+chrome.storage.local.get(null, (items) => {
     settings = { ...settings, ...items };
 });
 
-// Listen for settings updates
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'settingsUpdated') {
-        settings = { ...settings, ...message.settings };
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'settingsUpdated') {
+        settings = { ...settings, ...msg.settings };
     }
 });
 
-// Handle text selection
-document.addEventListener('mouseup', function(e) {
-    const selectedText = window.getSelection().toString().trim();
-    
-    if (selectedText) {
-        const selection = window.getSelection();
-        const range = selection.getRangeAt(0);
+// ==========================================================================
+// Text selection handler
+// ==========================================================================
+
+document.addEventListener('mouseup', (e) => {
+    const sel = window.getSelection().toString().trim();
+    if (sel) {
+        const range = window.getSelection().getRangeAt(0);
         const rect = range.getBoundingClientRect();
-        
-        // Get context around the selection
-        const context = getContextAroundSelection(range, parseInt(settings.contextLength));
-        
-        // Position and show the translation button
-        positionTranslationButton(rect);
-        
-        // Store the selected text and context for translation
-        translationButton.dataset.text = selectedText;
-        translationButton.dataset.context = context;
+        const ctx = _getContext(range);
+        _positionBtn(rect);
+        btn.dataset.text = sel;
+        btn.dataset.context = ctx;
     } else {
-        hideTranslationButton();
-        hideTranslationPopup();
+        _hide(btn);
+        _hide(popup);
     }
 });
 
-// Handle translation button click
-translationButton.addEventListener('click', async function() {
-    const text = this.dataset.text;
-    const context = this.dataset.context;
-    
+btn.addEventListener('click', async () => {
+    const text = btn.dataset.text;
+    const context = btn.dataset.context;
     if (!text) return;
-    
+
     try {
-        // Show loading state
-        showLoadingState();
-        
-        // Request translation from background script
-        const response = await chrome.runtime.sendMessage({
+        _showLoading();
+        const res = await chrome.runtime.sendMessage({
             type: 'translate',
-            text: text,
-            context: context,
-            targetLanguage: settings.targetLanguage
+            text,
+            context,
+            targetLanguage: settings.targetLanguage,
         });
-        
-        if (!response.success || response.error) {
-            showError(response.error || 'Translation failed');
+        if (!res.success || res.error) {
+            _showError(res.error || 'Translation failed');
         } else {
-            showTranslation(response.translatedText, response.confidence, response.notes);
+            _showResult(res.translatedText, res.confidence, res.notes);
         }
-    } catch (error) {
-        showError('Translation failed. Please try again.');
+    } catch {
+        _showError('Translation failed. Please try again.');
     }
 });
 
-// Handle clicks outside the popup to close it
-document.addEventListener('click', function(e) {
-    if (!translationPopup.contains(e.target) && e.target !== translationButton) {
-        hideTranslationPopup();
-    }
+// Close popup on outside click
+document.addEventListener('click', (e) => {
+    if (!shadowHost.contains(e.target)) _hide(popup);
 });
 
+// ==========================================================================
+// Smart context extraction (sentence boundary detection)
+// ==========================================================================
+
+/** Max characters of context before / after the selection. */
+const CONTEXT_CAP = 50;
+
+/** Block-level element tag names used as context boundaries. */
+const BLOCK_TAGS = new Set([
+    'P', 'LI', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+    'BLOCKQUOTE', 'ARTICLE', 'SECTION', 'FIGCAPTION', 'DD', 'DT',
+    'PRE', 'CAPTION',
+]);
+
+/** Common abbreviations whose trailing '.' should not be treated as a sentence end. */
+const ABBREVIATIONS = new Set([
+    'Dr', 'Mr', 'Mrs', 'Ms', 'Prof', 'Jr', 'Sr', 'St',
+    'vs', 'etc', 'Inc', 'Ltd', 'Corp', 'Co', 'Jan', 'Feb',
+    'Mar', 'Apr', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]);
+
 /**
- * Get context around the selected text
- * @param {Range} range - The selection range
- * @param {number} contextLength - Maximum context length
- * @returns {string} The context text
+ * Find the nearest block-level ancestor element to use as the text
+ * source for sentence boundary detection.
+ *
+ * @param {Node} node - Any DOM node (typically a text node).
+ * @returns {HTMLElement}
  */
-function getContextAroundSelection(range, contextLength) {
-    const container = range.commonAncestorContainer;
-    const text = container.textContent || '';
-    const start = Math.max(0, range.startOffset - contextLength);
-    const end = Math.min(text.length, range.endOffset + contextLength);
-    
-    return text.substring(start, end).trim();
+function _findBlock(node) {
+    let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    while (el && el !== document.body) {
+        if (BLOCK_TAGS.has(el.tagName)) return el;
+        // Accept a <div> only when it contains enough text to be meaningful.
+        if (el.tagName === 'DIV' && el.textContent.length > 20) return el;
+        el = el.parentElement;
+    }
+    return document.body;
 }
 
 /**
- * Position the translation button relative to the selection
- * @param {DOMRect} rect - The selection's bounding rectangle
+ * Calculate the character offset of *targetNode:targetOffset* within
+ * the concatenated textContent of *blockEl*.
+ *
+ * Uses a TreeWalker so the result is exact even when the selection
+ * spans multiple inline elements (``<em>``, ``<a>``, ``<strong>``…).
+ *
+ * @param {HTMLElement} blockEl
+ * @param {Node}        targetNode
+ * @param {number}      targetOffset
+ * @returns {number}
  */
-function positionTranslationButton(rect) {
-    const buttonSize = 32; // Size of the translation button
-    const padding = 10; // Padding from the selection
-    
-    let left, top;
-    
-    if (settings.buttonPosition === 'right') {
-        left = rect.right + padding;
-        top = rect.top + (rect.height - buttonSize) / 2;
-    } else {
-        left = rect.left - buttonSize - padding;
-        top = rect.top + (rect.height - buttonSize) / 2;
+function _textOffset(blockEl, targetNode, targetOffset) {
+    const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    while (walker.nextNode()) {
+        if (walker.currentNode === targetNode) return offset + targetOffset;
+        offset += walker.currentNode.length;
     }
-    
-    translationButton.style.left = `${left + window.scrollX}px`;
-    translationButton.style.top = `${top + window.scrollY}px`;
-    translationButton.style.display = 'block';
+    return offset; // fallback
 }
 
 /**
- * Show the translation popup with the translated text
- * @param {string} translatedText - The translated text to display
- * @param {number} confidence - Translation confidence score
- * @param {string} notes - Additional notes about the translation
+ * Test whether position *i* in *text* is a real sentence end.
+ *
+ * A sentence end is defined as one of ``.  !  ?  。 ！ ？`` followed by
+ * whitespace or the end of the string, **excluding** common abbreviations
+ * such as "Dr.", "Mr.", "etc.".
+ *
+ * @param {string} text
+ * @param {number} i    - Index of the punctuation character.
+ * @returns {boolean}
  */
-function showTranslation(translatedText, confidence = 0.9, notes = '') {
-    const buttonRect = translationButton.getBoundingClientRect();
-    
-    const confidenceBar = confidence ? `
-        <div class="contextdic-confidence" title="Translation confidence: ${Math.round(confidence * 100)}%">
-            <div class="contextdic-confidence-bar" style="width: ${confidence * 100}%"></div>
-        </div>
-    ` : '';
-    
-    const notesSection = notes ? `<div class="contextdic-notes">${notes}</div>` : '';
-    
-    translationPopup.innerHTML = `
-        <div class="contextdic-popup-content">
-            <div class="contextdic-popup-text">${translatedText}</div>
-            ${confidenceBar}
-            ${notesSection}
-            <button class="contextdic-copy-button">Copy</button>
-        </div>
-    `;
-    
-    // Position the popup
-    if (settings.popupPosition === 'bottom') {
-        translationPopup.style.top = `${buttonRect.bottom + window.scrollY + 10}px`;
-        translationPopup.style.left = `${buttonRect.left + window.scrollX}px`;
-    } else {
-        translationPopup.style.bottom = `${window.innerHeight - buttonRect.top + window.scrollY + 10}px`;
-        translationPopup.style.left = `${buttonRect.left + window.scrollX}px`;
+function _isSentenceEnd(text, i) {
+    const ch = text[i];
+
+    // CJK sentence-ending punctuation — always a real sentence end.
+    if (ch === '。' || ch === '！' || ch === '？') return true;
+
+    // English ! and ? — treat as sentence end when followed by space/EOL.
+    if (ch === '!' || ch === '?') {
+        return i === text.length - 1 || /\s/.test(text[i + 1]);
     }
-    
-    translationPopup.style.display = 'block';
-    
-    // Add copy functionality
-    const copyButton = translationPopup.querySelector('.contextdic-copy-button');
-    copyButton.addEventListener('click', function() {
+
+    // Period '.' — the most ambiguous; apply heuristics.
+    if (ch === '.') {
+        // Must be followed by whitespace or be at the end.
+        if (i < text.length - 1 && !/\s/.test(text[i + 1])) return false;
+
+        // Check for common abbreviation: grab the word before the dot.
+        let wordStart = i - 1;
+        while (wordStart >= 0 && /[A-Za-z]/.test(text[wordStart])) wordStart--;
+        const word = text.substring(wordStart + 1, i);
+        if (ABBREVIATIONS.has(word)) return false;
+
+        // Single uppercase letter + dot (e.g. "U." in "U.S.") → not a sentence end.
+        if (word.length === 1 && /[A-Z]/.test(word)) return false;
+
+        // Digit before dot (e.g. "3.14") → not a sentence end.
+        if (wordStart >= 0 && /\d/.test(text[wordStart])) return false;
+
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Walk backwards from *from* to find the start of the current sentence.
+ * Returns the index of the first character of the sentence.
+ *
+ * @param {string} text
+ * @param {number} from
+ * @returns {number}
+ */
+function _sentenceStart(text, from) {
+    for (let i = from - 1; i >= 0; i--) {
+        if (_isSentenceEnd(text, i)) {
+            // Skip whitespace after the punctuation to reach the next sentence's first char.
+            let j = i + 1;
+            while (j < text.length && /\s/.test(text[j])) j++;
+            return j;
+        }
+    }
+    return 0; // no boundary found → start of text
+}
+
+/**
+ * Walk forwards from *from* to find the end of the current sentence.
+ * Returns the index **after** the last character (exclusive).
+ *
+ * @param {string} text
+ * @param {number} from
+ * @returns {number}
+ */
+function _sentenceEnd(text, from) {
+    for (let i = from; i < text.length; i++) {
+        if (_isSentenceEnd(text, i)) return i + 1;
+    }
+    return text.length; // no boundary found → end of text
+}
+
+/**
+ * Extract semantically meaningful context around the user's selection.
+ *
+ * Strategy:
+ * 1. Walk up the DOM to find the nearest block-level parent.
+ * 2. Use TreeWalker to compute the precise character offsets of the
+ *    selection within the block's ``textContent``.
+ * 3. Expand outward to the nearest sentence boundaries.
+ * 4. Extend by one additional sentence before and after for context.
+ * 5. Cap the result at {@link CONTEXT_CAP} characters on each side of
+ *    the selection to keep payloads small.
+ *
+ * @param {Range} range - The user's selection range.
+ * @returns {string} Context string to send alongside the selected text.
+ */
+function _getContext(range) {
+    // 1. Find the block-level parent and its full text.
+    const block = _findBlock(range.commonAncestorContainer);
+    const fullText = block.textContent || '';
+    if (!fullText) return '';
+
+    // 2. Precise offsets via TreeWalker.
+    const selStart = _textOffset(block, range.startContainer, range.startOffset);
+    const selEnd = _textOffset(block, range.endContainer, range.endOffset);
+
+    // 3. Find the sentence containing the selection.
+    const curSentStart = _sentenceStart(fullText, selStart);
+    const curSentEnd = _sentenceEnd(fullText, selEnd);
+
+    // 4. Extend by one sentence before and one after.
+    const prevSentStart = _sentenceStart(fullText, curSentStart);
+    const nextSentEnd = _sentenceEnd(fullText, curSentEnd);
+
+    // 5. Apply the safety cap (CONTEXT_CAP chars each side of selection).
+    const ctxStart = Math.max(prevSentStart, selStart - CONTEXT_CAP);
+    const ctxEnd = Math.min(nextSentEnd, selEnd + CONTEXT_CAP);
+
+    return fullText.substring(ctxStart, ctxEnd).trim();
+}
+
+// ==========================================================================
+// UI helpers (XSS-safe — use textContent, not innerHTML for user data)
+// ==========================================================================
+
+/**
+ * Position the floating translate button next to the selection.
+ * @param {DOMRect} rect
+ */
+function _positionBtn(rect) {
+    const sz = 32;
+    const pad = 10;
+    const left = settings.buttonPosition === 'right'
+        ? rect.right + pad
+        : rect.left - sz - pad;
+    const top = rect.top + (rect.height - sz) / 2;
+    btn.style.left = `${left + window.scrollX}px`;
+    btn.style.top = `${top + window.scrollY}px`;
+    btn.style.display = 'flex';
+}
+
+/**
+ * Render translation result (XSS-safe via textContent).
+ * @param {string} translatedText
+ * @param {number} [confidence=0.9]
+ * @param {string} [notes='']
+ */
+function _showResult(translatedText, confidence = 0.9, notes = '') {
+    popup.innerHTML = ''; // clear
+
+    const inner = document.createElement('div');
+    inner.className = 'cd-popup-inner';
+
+    // Translation text (safe)
+    const textEl = document.createElement('div');
+    textEl.className = 'cd-text';
+    textEl.textContent = translatedText;
+    inner.appendChild(textEl);
+
+    // Confidence bar
+    if (confidence) {
+        const conf = document.createElement('div');
+        conf.className = 'cd-conf';
+        conf.title = `Confidence: ${Math.round(confidence * 100)}%`;
+        const bar = document.createElement('div');
+        bar.className = 'cd-conf-bar';
+        bar.style.width = `${confidence * 100}%`;
+        conf.appendChild(bar);
+        inner.appendChild(conf);
+    }
+
+    // Notes (safe)
+    if (notes) {
+        const n = document.createElement('div');
+        n.className = 'cd-notes';
+        n.textContent = notes;
+        inner.appendChild(n);
+    }
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'cd-copy';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(translatedText).then(() => {
-            this.textContent = 'Copied!';
-            setTimeout(() => {
-                this.textContent = 'Copy';
-            }, 2000);
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
         });
     });
+    inner.appendChild(copyBtn);
+
+    popup.appendChild(inner);
+    _positionPopup();
+}
+
+/** Show a loading spinner inside the popup. */
+function _showLoading() {
+    popup.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'cd-loading';
+    el.textContent = 'Translating…';
+    popup.appendChild(el);
+    _positionPopup();
 }
 
 /**
- * Show loading state in the popup
+ * Show an error message inside the popup (XSS-safe via textContent).
+ * @param {string} msg
  */
-function showLoadingState() {
-    translationPopup.innerHTML = `
-        <div class="contextdic-popup-content">
-            <div class="contextdic-loading">Translating...</div>
-        </div>
-    `;
-    
-    const buttonRect = translationButton.getBoundingClientRect();
-    translationPopup.style.top = `${buttonRect.bottom + window.scrollY + 10}px`;
-    translationPopup.style.left = `${buttonRect.left + window.scrollX}px`;
-    translationPopup.style.display = 'block';
+function _showError(msg) {
+    popup.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'cd-error';
+    el.textContent = msg;
+    popup.appendChild(el);
+    _positionPopup();
+}
+
+/** Position the popup relative to the translate button. */
+function _positionPopup() {
+    const r = btn.getBoundingClientRect();
+    popup.style.top = `${r.bottom + window.scrollY + 10}px`;
+    popup.style.left = `${r.left + window.scrollX}px`;
+    popup.style.display = 'block';
 }
 
 /**
- * Show error message in the popup
- * @param {string} error - The error message to display
+ * Hide a DOM element.
+ * @param {HTMLElement} el
  */
-function showError(error) {
-    translationPopup.innerHTML = `
-        <div class="contextdic-popup-content">
-            <div class="contextdic-error">${error}</div>
-        </div>
-    `;
-    
-    const buttonRect = translationButton.getBoundingClientRect();
-    translationPopup.style.top = `${buttonRect.bottom + window.scrollY + 10}px`;
-    translationPopup.style.left = `${buttonRect.left + window.scrollX}px`;
-    translationPopup.style.display = 'block';
+function _hide(el) {
+    el.style.display = 'none';
 }
-
-/**
- * Hide the translation button
- */
-function hideTranslationButton() {
-    translationButton.style.display = 'none';
-}
-
-/**
- * Hide the translation popup
- */
-function hideTranslationPopup() {
-    translationPopup.style.display = 'none';
-}
-
-/**
- * Finds the complete sentence containing the selected text
- * @param {string} selectedText - The text selected by the user
- * @param {Node} container - The container element containing the text
- * @returns {string} The complete sentence
- */
-function findCompleteSentence(selectedText, container) {
-    // Get the text content of the container
-    const text = container.textContent;
-    
-    // Find the position of the selected text in the container
-    const startPos = text.indexOf(selectedText);
-    if (startPos === -1) return selectedText;
-    
-    // Define sentence boundaries
-    const sentenceEndings = ['.', '!', '?', '。', '！', '？'];
-    const sentenceStartings = [' ', '\n', '\t', '　'];
-    
-    // Find the start of the sentence
-    let sentenceStart = startPos;
-    while (sentenceStart > 0) {
-        const char = text[sentenceStart - 1];
-        if (sentenceStartings.includes(char)) {
-            break;
-        }
-        sentenceStart--;
-    }
-    
-    // Find the end of the sentence
-    let sentenceEnd = startPos + selectedText.length;
-    while (sentenceEnd < text.length) {
-        const char = text[sentenceEnd];
-        if (sentenceEndings.includes(char)) {
-            sentenceEnd++;
-            break;
-        }
-        sentenceEnd++;
-    }
-    
-    // Extract the complete sentence
-    const completeSentence = text.slice(sentenceStart, sentenceEnd).trim();
-    
-    // If the sentence is too long (more than 1000 characters), return just the selected text
-    if (completeSentence.length > 1000) {
-        return selectedText;
-    }
-    
-    return completeSentence;
-}
-
-// Update the handleTextSelection function to use findCompleteSentence
-function handleTextSelection(event) {
-    const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
-    
-    if (selectedText) {
-        // Get the container element (usually the closest paragraph or div)
-        const container = selection.anchorNode.parentElement;
-        
-        // Find the complete sentence
-        const completeSentence = findCompleteSentence(selectedText, container);
-        
-        // Show translation popup with the complete sentence
-        showTranslationPopup(completeSentence, event);
-    }
-} 
