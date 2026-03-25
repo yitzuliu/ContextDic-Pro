@@ -6,6 +6,7 @@ A **professional Chrome extension** that provides context-aware translations usi
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-blue.svg)](https://chrome.google.com/webstore/)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-red.svg)](https://fastapi.tiangolo.com/)
+[![CI/CD](https://github.com/yitzuliu/ContextDic-Pro/actions/workflows/main.yml/badge.svg)](https://github.com/yitzuliu/ContextDic-Pro/actions)
 
 ---
 

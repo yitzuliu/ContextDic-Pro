@@ -7,37 +7,50 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # Job 1: Backend Testing (Continuous Integration)
-  backend-ci:
+  # Job 1: Backend Linting (Code Quality Check)
+  backend-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-          
+      - name: Install Linting Tools
+        run: pip install ruff
+      - name: Run Ruff Check (Lint)
+        run: ruff check backend/
+
+  # Job 2: Backend Testing (Continuous Integration)
+  backend-ci:
+    needs: backend-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          
       - name: Run tests with Pytest
         env:
-          GEMINI_API_KEY: "test_key" # Using dummy key for CI
+          # 💡 提示：在真實環境部署時，應使用 GitHub Secrets
+          # 例如：GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: "test_key"
           API_SECRET: "test_secret"
         run: |
           PYTHONPATH=. pytest backend/tests/test_api.py
 
-  # Job 2: Security Secret Scan (Prevent Leaks)
+  # Job 3: Security Secret Scan (Prevent Leaks)
   security-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history needed for secret scanning
-          
+          fetch-depth: 0
       - name: Secret Scan (TruffleHog)
         uses: trufflesecurity/trufflehog@main
         with:
@@ -46,19 +59,17 @@ jobs:
           head: HEAD
           extra_args: --debug --only-verified
 
-  # Job 3: Build Chrome Extension (Continuous Deployment Candidate)
+  # Job 4: Build Chrome Extension (Continuous Deployment Candidate)
   build-extension:
     needs: [backend-ci, security-scan]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Create Extension Package (ZIP)
         run: |
-          zip -r contextdic-pro-v2.0.0.zip src/ assets/ manifest.json README.md
-          
+          zip -r contextdic-pro-v2.1.0.zip src/ assets/ manifest.json README.md
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: contextdic-pro-extension-v2.0.0
-          path: contextdic-pro-v2.0.0.zip
+          name: contextdic-pro-extension-v2.1.0
+          path: contextdic-pro-v2.1.0.zip
