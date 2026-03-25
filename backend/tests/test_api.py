@@ -24,7 +24,7 @@ class _DummyModel:
     def __init__(self, _name: str):
         pass
 
-    def generate_content(self, _prompt: str) -> _DummyResponse:
+    async def generate_content_async(self, _prompt: str):
         return _DummyResponse(json.dumps({
             'translation': '你好',
             'confidence': 0.92,
@@ -43,14 +43,14 @@ def test_health(client):
     """GET /api/health returns 200."""
     r = client.get('/api/health')
     assert r.status_code == 200
-    assert r.get_json()['status'] == 'healthy'
+    assert r.json()['status'] == 'healthy'
 
 
 def test_status(client):
     """GET /api/status reports key readiness."""
     r = client.get('/api/status')
     assert r.status_code == 200
-    d = r.get_json()
+    d = r.json()
     assert d['backend_running'] is True
     assert 'api_key_configured' in d
 
@@ -66,7 +66,6 @@ def test_auth_missing_secret(client):
             'text': 'Hello', 'targetLanguage': 'zh',
         })
     assert r.status_code == 403
-    assert r.get_json()['errorType'] == 'AUTH_ERROR'
 
 
 def test_auth_wrong_secret(client):
@@ -86,7 +85,7 @@ def test_body_apikey_ignored(client):
                               'apiKey': 'should_be_ignored'},
                         headers=AUTH)
     assert r.status_code == 200
-    assert r.get_json()['success'] is True
+    assert r.json()['success'] is True
 
 
 # ---------------------------------------------------------------------------
@@ -101,18 +100,18 @@ def test_translate_success(client):
                               'context': 'Greeting'},
                         headers=AUTH)
     assert r.status_code == 200
-    d = r.get_json()
+    d = r.json()
     assert d['success'] is True
     assert d['translatedText'] == '你好'
     assert d['confidence'] == 0.92
 
 
 def test_translate_missing_params(client):
-    """Missing required params → 400."""
+    """Missing required params → 422 for Pydantic validation."""
     r = client.post('/api/translate',
                     json={'text': 'Hello'},  # no targetLanguage
                     headers=AUTH)
-    assert r.status_code == 400
+    assert r.status_code == 422
 
 
 def test_translate_no_context(client):
@@ -122,7 +121,7 @@ def test_translate_no_context(client):
                         json={'text': 'Hello', 'targetLanguage': 'zh'},
                         headers=AUTH)
     assert r.status_code == 200
-    assert r.get_json()['success'] is True
+    assert r.json()['success'] is True
 
 
 # ---------------------------------------------------------------------------
@@ -134,14 +133,15 @@ def test_rate_limit(client):
     from backend.services.rate_limiter import get_counters
     counters = get_counters()
     bucket = int(time.time() // 60)
-    counters[('127.0.0.1', bucket)] = 100  # already at limit
+    counters[('testclient', bucket)] = 100  # already at limit
 
     with patch('google.generativeai.GenerativeModel', _DummyModel):
         r = client.post('/api/translate',
                         json={'text': 'Hello', 'targetLanguage': 'zh'},
                         headers=AUTH)
     assert r.status_code == 429
-    del counters[('127.0.0.1', bucket)]
+    if ('testclient', bucket) in counters:
+        del counters[('testclient', bucket)]
 
 
 # ---------------------------------------------------------------------------

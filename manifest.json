@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ContextDic Pro",
-  "version": "1.2.0",
-  "description": "Context-aware translations powered by Google's Gemini AI",
+  "version": "2.0.0",
+  "description": "Context-aware translations powered by Google's Gemini AI Agent System",
   "permissions": [
     "storage",
     "activeTab"
@@ -37,7 +37,9 @@
         "<all_urls>"
       ],
       "js": [
-        "src/content/content.js"
+        "src/content/context-extractor.js",
+        "src/content/ui-renderer.js",
+        "src/content/main.js"
       ],
       "css": [
         "src/content/content.css"

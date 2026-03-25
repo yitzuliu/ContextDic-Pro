@@ -5,7 +5,7 @@ A **professional Chrome extension** that provides context-aware translations usi
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-blue.svg)](https://chrome.google.com/webstore/)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
-[![Flask](https://img.shields.io/badge/Flask-3.0+-red.svg)](https://flask.palletsprojects.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-red.svg)](https://fastapi.tiangolo.com/)
 
 ---
 
@@ -130,9 +130,9 @@ ContextDic Pro/
 
 ### **Backend**
 - **Python 3.8+** with type hints
-- **Flask 3.0.0** lightweight web framework
+- **FastAPI** lightning-fast, async web framework
 - **Google Generative AI** (Gemini API)
-- **Flask-CORS** for cross-origin support
+- **Agent/Skill Architecture** (Orchestrator, Subagents, Skills)
 
 ### **Development Tools**
 - **Node.js** for build scripts and tooling

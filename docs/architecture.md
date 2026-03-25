@@ -7,7 +7,7 @@ ContextDic Pro is a professional Chrome extension built with a modern, scalable 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Chrome        │    │   Backend API    │    │   Gemini AI     │
-│   Extension     │◄──►│   (Flask)        │◄──►│   Service       │
+│   Extension     │◄──►│   (FastAPI)      │◄──►│   Agent System  │
 │                 │    │                  │    │                 │
 ├─ Content Script │    ├─ /api/translate  │    └─────────────────┘
 ├─ Background     │    ├─ /api/health     │
@@ -217,9 +217,9 @@ package.json              # Node.js dependencies for tooling
 
 ### **Backend Technologies**:
 - **Python 3.8+**: Modern Python with type hints
-- **Flask 3.0.0**: Lightweight web framework
+- **FastAPI**: Asynchronous web framework for high performance
+- **Agent System**: Multi-agent Orchestrator with domain Subagents
 - **Google Generative AI**: Gemini API integration
-- **Flask-CORS**: Cross-origin resource sharing
 
 ### **Development Tools**:
 - **Node.js**: For build scripts and tooling

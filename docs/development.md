@@ -211,7 +211,7 @@
 
 4. Start backend service:
    ```bash
-   python app.py
+   uvicorn backend.app:app --reload
    ```
 
 5. Load extension in Chrome:
