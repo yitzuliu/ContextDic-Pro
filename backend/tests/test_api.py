@@ -6,31 +6,13 @@ translation flow, edge cases, and rate limiting.
 
 import json
 import time
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
+from backend.agents.models import TranslationResult
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-class _DummyResponse:
-    """Imitates ``google.generativeai`` model response."""
-    def __init__(self, text: str):
-        self.text = text
-
-
-class _DummyModel:
-    """Stub ``GenerativeModel`` that returns a fixed JSON translation."""
-    def __init__(self, _name: str):
-        pass
-
-    async def generate_content_async(self, _prompt: str):
-        return _DummyResponse(json.dumps({
-            'translation': '你好',
-            'confidence': 0.92,
-            'notes': 'Test translation',
-        }))
-
 
 AUTH = {'X-API-Secret': 'test_secret'}
 
@@ -61,25 +43,25 @@ def test_status(client):
 
 def test_auth_missing_secret(client):
     """Requests without X-API-Secret → 403."""
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
-        r = client.post('/api/translate', json={
-            'text': 'Hello', 'targetLanguage': 'zh',
-        })
+    r = client.post('/api/translate', json={
+        'text': 'Hello', 'targetLanguage': 'zh',
+    })
     assert r.status_code == 403
 
 
 def test_auth_wrong_secret(client):
     """Requests with wrong X-API-Secret → 403."""
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
-        r = client.post('/api/translate',
-                        json={'text': 'Hello', 'targetLanguage': 'zh'},
-                        headers={'X-API-Secret': 'wrong'})
+    r = client.post('/api/translate',
+                    json={'text': 'Hello', 'targetLanguage': 'zh'},
+                    headers={'X-API-Secret': 'wrong'})
     assert r.status_code == 403
 
 
 def test_body_apikey_ignored(client):
     """An apiKey in the request body is silently ignored."""
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
+    mock_result = TranslationResult(translatedText="你好", confidence=0.92, notes="Test")
+    with patch('backend.app.orchestrator.translate', new_callable=AsyncMock) as mock_translate:
+        mock_translate.return_value = mock_result
         r = client.post('/api/translate',
                         json={'text': 'Hello', 'targetLanguage': 'zh',
                               'apiKey': 'should_be_ignored'},
@@ -94,7 +76,9 @@ def test_body_apikey_ignored(client):
 
 def test_translate_success(client):
     """Authenticated request returns parsed JSON translation."""
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
+    mock_result = TranslationResult(translatedText="你好", confidence=0.92, notes="Test")
+    with patch('backend.app.orchestrator.translate', new_callable=AsyncMock) as mock_translate:
+        mock_translate.return_value = mock_result
         r = client.post('/api/translate',
                         json={'text': 'Hello', 'targetLanguage': 'zh',
                               'context': 'Greeting'},
@@ -116,7 +100,9 @@ def test_translate_missing_params(client):
 
 def test_translate_no_context(client):
     """Translation works without optional context."""
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
+    mock_result = TranslationResult(translatedText="你好", confidence=0.92, notes="Test")
+    with patch('backend.app.orchestrator.translate', new_callable=AsyncMock) as mock_translate:
+        mock_translate.return_value = mock_result
         r = client.post('/api/translate',
                         json={'text': 'Hello', 'targetLanguage': 'zh'},
                         headers=AUTH)
@@ -135,10 +121,9 @@ def test_rate_limit(client):
     bucket = int(time.time() // 60)
     counters[('testclient', bucket)] = 100  # already at limit
 
-    with patch('google.generativeai.GenerativeModel', _DummyModel):
-        r = client.post('/api/translate',
-                        json={'text': 'Hello', 'targetLanguage': 'zh'},
-                        headers=AUTH)
+    r = client.post('/api/translate',
+                    json={'text': 'Hello', 'targetLanguage': 'zh'},
+                    headers=AUTH)
     assert r.status_code == 429
     if ('testclient', bucket) in counters:
         del counters[('testclient', bucket)]

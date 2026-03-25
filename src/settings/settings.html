@@ -251,14 +251,21 @@
 
     <!-- BYOK section -->
     <div id="section-byok" class="mode-section active">
-      <label for="apiKey">Gemini API Key</label>
-      <p class="desc">Get a free key at <a href="https://aistudio.google.com/apikey"
-          target="_blank">aistudio.google.com/apikey</a></p>
-      <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
+      <label for="aiProvider">AI Provider</label>
+      <select id="aiProvider" style="margin-bottom: 15px; width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+        <option value="gemini">Google Gemini</option>
+        <option value="openai">OpenAI (ChatGPT)</option>
+        <option value="claude">Anthropic Claude</option>
+        <option value="grok">xAI Grok</option>
+      </select>
+
+      <label for="apiKey">API Key</label>
+      <p class="desc">Enter the API key for your selected provider.</p>
+      <input type="password" id="apiKey" placeholder="Enter your API key">
       <div class="info-box">
         <span class="icon">🔒</span>
         <span>Your key is stored locally in this browser only. It is <strong>never</strong> sent to any third-party
-          server — only to Google's Gemini API.</span>
+          server other than the selected AI provider.</span>
       </div>
     </div>
 

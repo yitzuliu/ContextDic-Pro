@@ -7,13 +7,14 @@
  * @module background
  */
 
-import GeminiService from '../services/gemini-service.js';
+import { AIServiceFactory } from '../services/ai-service-factory.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────
 
 /** @type {Object} */
 let settings = {
     mode: 'byok',
+    aiProvider: 'gemini', // 'gemini', 'openai', 'claude', 'grok'
     apiKey: '',
     targetLanguage: 'en',
     backendUrl: 'http://localhost:5000',
@@ -22,18 +23,7 @@ let settings = {
 
 chrome.storage.local.get(null, (items) => {
     settings = { ...settings, ...items };
-    _syncService();
 });
-
-/** Push current settings into GeminiService. */
-function _syncService() {
-    GeminiService.configure({
-        mode: settings.mode,
-        apiKey: settings.apiKey,
-        backendUrl: settings.backendUrl,
-        apiSecret: settings.apiSecret,
-    });
-}
 
 // ── Message handler ───────────────────────────────────────────────────────
 
@@ -45,7 +35,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
         case 'settingsUpdated':
             settings = { ...settings, ...msg.settings };
-            _syncService();
             break;
     }
 });
@@ -56,11 +45,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  */
 async function _handleTranslate(msg, sendResponse) {
     try {
-        const result = await GeminiService.translate(
-            msg.text,
-            msg.targetLanguage || settings.targetLanguage,
-            msg.context || '',
-        );
+        let result;
+        if (settings.mode === 'byok') {
+            const provider = AIServiceFactory.createProvider(settings.aiProvider, settings.apiKey);
+            result = await provider.translate(
+                msg.text,
+                msg.targetLanguage || settings.targetLanguage,
+                msg.context || ''
+            );
+        } else {
+            // Backend mode logic...
+            result = await _translateViaBackend(msg.text, msg.targetLanguage || settings.targetLanguage, msg.context || '');
+        }
+
         sendResponse({
             success: true,
             translatedText: result.translatedText,
@@ -70,6 +67,22 @@ async function _handleTranslate(msg, sendResponse) {
     } catch (err) {
         sendResponse({ success: false, error: err.message || 'Translation failed.' });
     }
+}
+
+async function _translateViaBackend(text, targetLanguage, context) {
+    const res = await fetch(`${settings.backendUrl}/api/translate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Secret': settings.apiSecret
+        },
+        body: JSON.stringify({ text, targetLanguage, context })
+    });
+    
+    if (!res.ok) throw new Error(`Backend Error: ${res.statusText}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    return data;
 }
 
 // ── Install hook ──────────────────────────────────────────────────────────

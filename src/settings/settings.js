@@ -11,6 +11,7 @@
 
 const DEFAULTS = {
     mode: 'byok',
+    aiProvider: 'gemini',
     sourceLanguage: 'zh',
     targetLanguage: 'en',
     apiKey: '',
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function _loadSettings() {
     chrome.storage.local.get(DEFAULTS, (s) => {
+        _val('aiProvider', s.aiProvider || 'gemini');
         _val('sourceLanguage', s.sourceLanguage);
         _val('targetLanguage', s.targetLanguage);
         _val('apiKey', s.apiKey);
@@ -43,6 +45,7 @@ function _saveSettings() {
 
     const s = {
         mode: _currentMode(),
+        aiProvider: _val('aiProvider'),
         sourceLanguage: _val('sourceLanguage'),
         targetLanguage: _val('targetLanguage'),
         apiKey: _val('apiKey'),
